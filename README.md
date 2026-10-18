@@ -33,7 +33,9 @@ npm run build
 npm start          # node scripts/serve.mjs, listens on 0.0.0.0:3016 (PORT, HOST, ATLAS_DIST)
 ```
 
-Each device downloads the geometry once and keeps it in IndexedDB, which also works over plain HTTP. Later visits only revalidate small files, and a device downloads geometry again only when the model changes. Setup steps, nginx and systemd examples, and capacity notes (in Indonesian) are in [docs/INTRANET.md](docs/INTRANET.md).
+Each device downloads the geometry once and keeps it in IndexedDB, which also works over plain HTTP. Later visits only revalidate small files, and a device downloads geometry again only when the model changes. Over HTTPS (`TLS_CERT` and `TLS_KEY`), a service worker also keeps the app shell on each device, so the app opens even while the server is off.
+
+On a Mac, `bash scripts/macos-service.sh install` keeps the server running in the background (launchd), across logins and closed terminals; `pin-ip` keeps the Mac's address fixed. Setup steps, HTTPS with mkcert, nginx and systemd examples, and capacity notes (in Indonesian) are in [docs/INTRANET.md](docs/INTRANET.md).
 
 ## Validate
 

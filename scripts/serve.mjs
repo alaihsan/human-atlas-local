@@ -2,7 +2,9 @@
 // Production server for intranet deployments. Needs only Node.js and a built dist/ folder (no npm packages):
 // copy dist/ and this file to the server and run `node serve.mjs`, or `npm start` inside the repository.
 //   PORT (default 3016), HOST (default 0.0.0.0), ATLAS_DIST (default: a dist/ folder beside this file, else ../dist)
+//   TLS_CERT and TLS_KEY (PEM files): serve HTTPS, which browsers require before they run the offline service worker.
 import http from 'node:http';
+import https from 'node:https';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
@@ -14,6 +16,8 @@ const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(process.env.ATLAS_DIST??[path.join(here,'dist'),path.join(here,'../dist')].find(dir=>fs.existsSync(path.join(dir,'index.html')))??path.join(here,'../dist'));
 const port=Number(process.env.PORT??3016),host=process.env.HOST??'0.0.0.0';
 if(!fs.existsSync(path.join(root,'index.html'))){console.error(`No build found in ${root}. Run "npm run build" first, or set ATLAS_DIST.`);process.exit(1);}
+if(!process.env.TLS_CERT!==!process.env.TLS_KEY){console.error('Set both TLS_CERT and TLS_KEY to serve HTTPS.');process.exit(1);}
+const tls=process.env.TLS_CERT?{cert:fs.readFileSync(process.env.TLS_CERT),key:fs.readFileSync(process.env.TLS_KEY)}:null,scheme=tls?'https':'http';
 
 const TYPES={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2','.md':'text/markdown; charset=utf-8','.txt':'text/plain; charset=utf-8','.bin':'application/octet-stream','.gz':'application/octet-stream'};
 // Text and raw geometry have precompressed siblings. A .bin.gz requested by name is sent as-is: the viewer inflates it itself.
@@ -63,12 +67,13 @@ async function handle(req,res){
  pipeline(fs.createReadStream(body),res,()=>{/* A client that leaves mid-download is normal; pipeline already closed both ends. */});
 }
 
-const server=http.createServer((req,res)=>{handle(req,res).catch(error=>{console.error(error);if(!res.headersSent)send(res,500,'Server error');else res.destroy();});});
+const respond=(req,res)=>{handle(req,res).catch(error=>{console.error(error);if(!res.headersSent)send(res,500,'Server error');else res.destroy();});};
+const server=tls?https.createServer(tls,respond):http.createServer(respond);
 server.keepAliveTimeout=30_000;server.headersTimeout=35_000;
 server.on('error',error=>{console.error(error.code==='EADDRINUSE'?`Port ${port} is already in use. Set PORT to another value.`:error);process.exit(1);});
 server.listen(port,host,()=>{
- const lan=Object.values(os.networkInterfaces()).flat().filter(a=>a&&a.family==='IPv4'&&!a.internal).map(a=>`  http://${a.address}:${port}`);
- console.log(`Human Atlas is serving ${root}\n  http://localhost:${port}${lan.length?`\nOn other devices in this network:\n${lan.join('\n')}`:''}`);
+ const lan=Object.values(os.networkInterfaces()).flat().filter(a=>a&&a.family==='IPv4'&&!a.internal).map(a=>`  ${scheme}://${a.address}:${port}`);
+ console.log(`Human Atlas is serving ${root}\n  ${scheme}://localhost:${port}${lan.length?`\nOn other devices in this network:\n${lan.join('\n')}`:''}`);
 });
 const stop=()=>{server.close(()=>process.exit(0));server.closeIdleConnections();setTimeout(()=>process.exit(0),5000).unref();};
 process.on('SIGINT',stop);process.on('SIGTERM',stop);

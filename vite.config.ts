@@ -67,6 +67,7 @@ const walk = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: tru
 
 /** Prepares dist/ for self-hosted (intranet) serving:
  * - stamps each geometry chunk in atlas.json with a content hash, so device caches refresh only when a model really changes;
+ * - fills public/sw.js with the offline shell's file list and a version that changes whenever one of those files does;
  * - writes .br/.gz siblings of text assets for scripts/serve.mjs (or nginx gzip_static) to send without compressing per request.
  */
 function intranetBuildPlugin() {
@@ -81,6 +82,18 @@ function intranetBuildPlugin() {
         const atlas = JSON.parse(fs.readFileSync(atlasPath, 'utf8'));
         for (const chunk of atlas.chunks) chunk.hash = createHash('sha256').update(fs.readFileSync(pathModule.join(outDir, chunk.url))).digest('hex').slice(0, 16);
         fs.writeFileSync(atlasPath, JSON.stringify(atlas));
+      }
+      const swPath = pathModule.join(outDir, 'sw.js');
+      if (fs.existsSync(swPath)) {
+        // Geometry chunks stay out of the shell: the page caches them in IndexedDB.
+        const shell = walk(outDir).map(file => '/' + pathModule.relative(outDir, file).split(pathModule.sep).join('/'))
+          .filter(url => url !== '/sw.js' && !/\.(br|gz|md)$/.test(url) && !/^\/models\/.+\.bin$/.test(url)).sort();
+        const version = createHash('sha256');
+        for (const url of shell) version.update(url).update(fs.readFileSync(pathModule.join(outDir, url)));
+        const manifest = JSON.stringify({ version: version.digest('hex').slice(0, 16), files: shell });
+        const source = fs.readFileSync(swPath, 'utf8');
+        if (source.split('self.__PRECACHE__').length !== 2) throw new Error('sw.js must contain exactly one self.__PRECACHE__ placeholder.');
+        fs.writeFileSync(swPath, source.replace('self.__PRECACHE__', manifest));
       }
       const text = walk(outDir).filter(file => /\.(html|js|css|json|svg|md)$/.test(file) && fs.statSync(file).size > 1024);
       await Promise.all(text.map(async file => {

@@ -8,6 +8,7 @@ Panduan ini untuk menjalankan Human Atlas di jaringan lokal (lab komputer, Wi-Fi
 - **Setiap perangkat menyimpan model 3D sendiri.** Model anatomi (±33 MB) diunduh **sekali** per perangkat lalu disimpan di IndexedDB browser. Kunjungan berikutnya tidak mengunduh geometri lagi; yang dikirim server hanya pemeriksaan singkat (`304 Not Modified`).
 - **Cache diperbarui otomatis bila perlu.** Saat build, setiap file model diberi hash isi. Perangkat mengunduh ulang hanya jika model benar-benar berubah, dan versi lama dihapus otomatis sehingga ruang penyimpanan tidak terus bertambah.
 - **Kode aplikasi di-cache permanen.** File JS/CSS memakai nama ber-hash. Pada pembaruan aplikasi, perangkat hanya mengunduh bagian yang berubah (three.js dan library lain biasanya tetap di cache).
+- **Bisa dibuka walau server mati (lewat HTTPS).** Service worker menyimpan kerangka aplikasi (±3 MB) di perangkat. Bersama model di IndexedDB, perangkat yang pernah membuka aplikasi tetap bisa memakainya saat server mati. Browser hanya menjalankan service worker lewat HTTPS atau `localhost`; lihat [Mode offline penuh](#mode-offline-penuh-service-worker--https).
 
 Perkiraan lalu lintas jaringan:
 
@@ -29,6 +30,48 @@ npm start        # sama dengan: node scripts/serve.mjs
 ```
 
 Di dalam repositori, file server ada di `scripts/serve.mjs`, bukan di root. Karena itu `node serve.mjs` dari root repositori akan gagal dengan `Cannot find module`.
+
+## Menjalankan terus di Mac (tanpa terminal terbuka)
+
+`npm start` berhenti saat terminal ditutup. Agar server berjalan di latar belakang, ikut menyala setiap kali Anda login, dan otomatis hidup lagi bila berhenti, pasang sebagai layanan macOS (launchd):
+
+```sh
+npm run build                                # sekali, sebelum memasang
+bash scripts/macos-service.sh install        # pasang dan jalankan sekarang
+```
+
+Perintah lain:
+
+| Perintah | Fungsi |
+|---|---|
+| `bash scripts/macos-service.sh status` | Cek apakah berjalan, dan tampilkan alamat untuk perangkat lain |
+| `bash scripts/macos-service.sh logs` | Lihat log server |
+| `bash scripts/macos-service.sh restart` | Muat ulang server (hanya perlu bila `scripts/serve.mjs` berubah) |
+| `bash scripts/macos-service.sh uninstall` | Hentikan dan hapus layanan |
+
+- Setelah `npm run build` berikutnya, layanan **tidak perlu** di-restart; file baru langsung dilayani.
+- Selama layanan berjalan, Mac dicegah tidur otomatis (`caffeinate`). Layar tetap boleh mati. Namun MacBook yang **ditutup** tetap tidur, kecuali tersambung ke monitor eksternal dan charger.
+- Layanan berjalan selama Anda login. Untuk server yang menyala tanpa login, aktifkan login otomatis di Pengaturan Sistem → Pengguna & Grup.
+- Jangan simpan repositori di Desktop, Documents, atau Downloads; macOS dapat memblokir layanan latar belakang membaca folder itu. `~/dev` aman.
+- Jika firewall macOS aktif, skrip menampilkan perintah sekali jalan untuk mengizinkan Node.js menerima koneksi.
+- Jika Node.js diperbarui lewat nvm (path-nya berubah), jalankan `install` sekali lagi.
+
+## Alamat yang tetap
+
+IP dari router (DHCP) bisa berganti, misalnya setelah Mac restart. Ada tiga cara agar perangkat lain selalu menemukan server, dari yang paling mudah:
+
+> Pilih **satu** alamat lalu pakai terus di setiap perangkat. Browser menyimpan cache per alamat, jadi perangkat yang berpindah dari alamat IP ke alamat `.local` (atau sebaliknya) akan mengunduh model 33 MB lagi.
+
+1. **Pakai nama `.local`, tanpa pengaturan apa pun.** `status` menampilkan alamat seperti `http://nama-mac.local:3016`. Nama ini tetap walau IP berganti, dan bisa dibuka di iPhone/iPad, Mac, Windows 10/11, dan Linux. Sebagian perangkat Android tidak mendukung `.local`, jadi gunakan IP untuk perangkat itu.
+2. **Reservasi DHCP di router (paling kuat).** Di halaman admin router, kunci IP Mac ini ke alamat MAC-nya. `pin-ip` di bawah menampilkan alamat MAC tersebut. Untuk Wi-Fi, matikan "Private Wi-Fi Address" (atau setel ke *Fixed*) pada jaringan itu agar alamat MAC tidak berganti.
+3. **Kunci IP dari Mac:**
+
+   ```sh
+   bash scripts/macos-service.sh pin-ip     # memakai IP saat ini secara permanen (meminta password)
+   bash scripts/macos-service.sh unpin-ip   # kembali ke otomatis
+   ```
+
+   Router, DNS, dan subnet tetap diambil otomatis; hanya IP yang dikunci. Jika MacBook juga dipakai di jaringan lain (misalnya Wi-Fi rumah), jalankan `unpin-ip` di sana. IP yang dikunci bisa tidak cocok dengan jaringan lain itu.
 
 ## Langkah pemasangan di server terpisah
 
@@ -120,15 +163,48 @@ Biarkan file `*.bin.gz` dikirim apa adanya (`application/octet-stream`, tanpa `C
 - Jika penyimpanan perangkat penuh, aplikasi tetap berjalan dan memuat model dari server.
 - Unduhan yang terputus (Wi-Fi tidak stabil, server sibuk) dicoba ulang otomatis hingga 3 kali. Setiap file diperiksa ukurannya sebelum disimpan, jadi data rusak tidak pernah masuk cache.
 
-## HTTPS (opsional)
+## Mode offline penuh: service worker + HTTPS
 
-Lewat HTTP biasa semua fitur di atas tetap bekerja. Jika server memakai HTTPS (misalnya sertifikat CA internal), browser juga bisa menandai penyimpanan sebagai *persistent*, sehingga cache tidak dihapus saat ruang disk menipis. Aplikasi memintanya otomatis bila tersedia.
+Service worker sudah ada di aplikasi dan aktif sendiri, tetapi **browser hanya menjalankannya lewat HTTPS atau `localhost`**. Lewat `http://192.168.x.x` browser memblokirnya. Dalam kondisi itu aplikasi tetap berjalan normal dan model tetap disimpan di IndexedDB; yang tidak tersedia hanyalah kemampuan membuka aplikasi saat server mati.
+
+Dengan HTTPS, Anda mendapat:
+
+- Aplikasi tetap terbuka di perangkat yang pernah memakainya, walau server mati atau Mac tidur.
+- Server yang lambat tidak membuat perangkat menunggu lama: setelah 4 detik, versi tersimpan yang dipakai.
+- Penyimpanan ditandai *persistent*, jadi browser tidak menghapus cache saat ruang disk menipis.
+- Pembaruan tetap otomatis. Setelah `npm run build`, perangkat mengambil versi baru saat aplikasi dibuka berikutnya, lalu menghapus versi lama.
+
+Cara memasang HTTPS di jaringan lokal dengan [mkcert](https://github.com/FiloSottile/mkcert) (sekali, di Mac server):
+
+```sh
+brew install mkcert
+mkcert -install
+mkdir -p ~/.human-atlas
+mkcert -cert-file ~/.human-atlas/cert.pem -key-file ~/.human-atlas/key.pem \
+  "$(scutil --get LocalHostName).local" 192.168.1.50 localhost   # ganti dengan IP Mac Anda
+TLS_CERT=~/.human-atlas/cert.pem TLS_KEY=~/.human-atlas/key.pem bash scripts/macos-service.sh install
+```
+
+Setelah itu setiap perangkat harus **memercayai sertifikat induk** mkcert. Lokasinya ditampilkan oleh `mkcert -CAROOT`, file `rootCA.pem`. Bagikan hanya `rootCA.pem`; jangan pernah bagikan `rootCA-key.pem`.
+
+| Perangkat | Cara memasang `rootCA.pem` |
+|---|---|
+| iPhone/iPad | Kirim lewat AirDrop → Pengaturan → Profil Diunduh → Instal. Lalu Umum → Mengenai → Pengaturan Kepercayaan Sertifikat → aktifkan |
+| Android | Pengaturan → Keamanan → Enkripsi & kredensial → Instal sertifikat → Sertifikat CA |
+| Windows | Klik dua kali → Instal Sertifikat → Local Machine → *Trusted Root Certification Authorities* |
+| Chromebook | Setelan → Privasi dan keamanan → Keamanan → Kelola sertifikat → Otoritas → Impor |
+
+Sertifikat berlaku untuk nama `.local` dan IP yang Anda tulis saat membuatnya. Jika IP Mac berganti, buat ulang sertifikat atau gunakan alamat `.local`. Ini alasan lain untuk [mengunci alamat](#alamat-yang-tetap).
+
+Tanpa server Mac, `TLS_CERT` dan `TLS_KEY` juga bisa dipakai langsung: `TLS_CERT=cert.pem TLS_KEY=key.pem node serve.mjs`.
 
 ## Pemecahan masalah
 
 | Gejala | Penyebab / solusi |
 |---|---|
-| `Port 3016 is already in use` | Jalankan dengan port lain: `PORT=8080 node serve.mjs` |
+| `Port 3016 is already in use` | Server lain (atau layanan macOS) sudah memakai port itu. Cek `bash scripts/macos-service.sh status`, atau pakai port lain: `PORT=8080 npm start` |
+| Layanan macOS terpasang tetapi tidak menjawab | Lihat `bash scripts/macos-service.sh logs`. Penyebab umum: belum `npm run build`, atau repositori ada di Desktop/Documents/Downloads |
+| Kadang tidak bisa diakses | Mac tidur (MacBook ditutup) atau IP berganti; lihat [Alamat yang tetap](#alamat-yang-tetap) |
 | Perangkat lain tidak bisa membuka alamat | Periksa firewall server dan pastikan perangkat berada di jaringan yang sama |
 | "This browser could not start the 3D viewer" | WebGL dimatikan atau driver grafis terlalu lama; gunakan Chrome/Edge/Firefox versi terbaru |
 | "The 3D session was paused by your device" | Memori GPU habis (perangkat lemah atau terlalu banyak tab). Tutup tab lain lalu muat ulang |
