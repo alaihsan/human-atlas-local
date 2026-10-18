@@ -1,4 +1,4 @@
-import type {SystemId, Concept, Part, Atlas} from './anatomy';
+import type { SystemId, Concept, Part, Atlas } from './anatomy';
 
 export type Language = 'en' | 'id';
 
@@ -82,6 +82,14 @@ export const UI_TEXT = {
     aboutDatasetLicense: 'Dataset license',
     aboutOriginalGeometry: 'Original geometry & metadata',
     aboutReadPublication: 'Read the source publication',
+    schoolCreditHeading: 'School Development & Educational Purpose',
+    schoolCreditBadge: 'SMPI AL AZHAR 22 SENTRA PRIMER · 2026',
+    schoolCreditDesc: 'This application was developed for school educational purposes by Muhamad Ichsan and Science teacher colleagues (Nurlayly Hasim, Maylinda Puspitasari, Yani Luthfiah Azhari) at SMPI AL AZHAR 22 SENTRA PRIMER (2026).',
+    schoolCreditRoleLead: 'Lead Developer',
+    schoolCreditLeadName: 'Muhamad Ichsan',
+    schoolCreditRoleTeam: 'Science Teacher Team',
+    schoolCreditTeamNames: 'Nurlayly Hasim, Maylinda Puspitasari, Yani Luthfiah Azhari',
+    schoolCreditInstitution: 'SMPI AL AZHAR 22 SENTRA PRIMER (2026)',
   },
   id: {
     appEyebrow: 'ANATOMI INTERAKTIF 3D',
@@ -162,10 +170,18 @@ export const UI_TEXT = {
     aboutDatasetLicense: 'Lisensi Dataset (CC BY 4.0)',
     aboutOriginalGeometry: 'Data Geometri & Metadata Asli',
     aboutReadPublication: 'Baca Publikasi Ilmiah Resmi',
+    schoolCreditHeading: 'Pengembangan & Dedikasi Sekolah',
+    schoolCreditBadge: 'SMPI AL AZHAR 22 SENTRA PRIMER · 2026',
+    schoolCreditDesc: 'Aplikasi ini dikembangkan untuk kalangan sekolah oleh Muhamad Ichsan dan rekan guru IPA (Nurlayly Hasim, Maylinda Puspitasari, Yani Luthfiah Azhari) di SMPI AL AZHAR 22 SENTRA PRIMER (2026).',
+    schoolCreditRoleLead: 'Pengembang Utama',
+    schoolCreditLeadName: 'Muhamad Ichsan',
+    schoolCreditRoleTeam: 'Rekan Guru IPA',
+    schoolCreditTeamNames: 'Nurlayly Hasim, Maylinda Puspitasari, Yani Luthfiah Azhari',
+    schoolCreditInstitution: 'SMPI AL AZHAR 22 SENTRA PRIMER (2026)',
   }
 };
 
-export const SYSTEMS_EN: Record<SystemId, {name:string; description:string}> = {
+export const SYSTEMS_EN: Record<SystemId, { name: string; description: string }> = {
   skeletal: {
     name: 'Skeleton',
     description: 'Bones form the supporting framework of the body, protect organs, and provide attachment points for muscles. Their internal tissue also stores minerals and produces blood cells.'
@@ -228,7 +244,7 @@ export const SYSTEMS_EN: Record<SystemId, {name:string; description:string}> = {
   }
 };
 
-export const SYSTEMS_ID: Record<SystemId, {name:string; description:string}> = {
+export const SYSTEMS_ID: Record<SystemId, { name: string; description: string }> = {
   skeletal: {
     name: 'Sistem Rangka (Tulang)',
     description: 'Tulang adalah fondasi kokoh yang menopang seluruh tubuh dan melindungi organ-organ lunak penting seperti otak, jantung, dan paru-paru. Di bagian dalamnya, sumsum tulang aktif memproduksi sel darah baru dan menyimpan cadangan kalsium tubuh.'

@@ -1,7 +1,7 @@
 import {flushSync} from 'react-dom';
 import {registerAtlasTools} from './agent-tools';
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Activity,ArrowUpRight,ChevronRight,Focus,GraduationCap,Info,Languages,Layers3,Pause,RotateCcw,RotateCw,Search,X} from 'lucide-react';
+import {Activity,ArrowUpRight,ChevronRight,Focus,GraduationCap,Info,Languages,Layers3,Pause,RotateCcw,RotateCw,Search,Sparkles,X} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Badge} from '@/components/ui/badge';
 import {Slider} from '@/components/ui/slider';
@@ -10,11 +10,13 @@ import {Sheet,SheetContent,SheetTitle,SheetDescription} from '@/components/ui/sh
 import {Combobox,ComboboxInput,ComboboxContent,ComboboxList,ComboboxItem,ComboboxEmpty} from '@/components/ui/combobox';
 import AnatomyScene from './scene';
 import QuizModal from './quiz-modal';
+import FlashcardModal from './flashcard-modal';
 import {DEFAULT_VISIBLE,SYSTEMS,type Atlas,type Concept,type SceneState,type SystemId,type View} from './anatomy';
 import {type Language,UI_TEXT,SYSTEMS_EN,SYSTEMS_ID,getExplanation,translateAnatomyName,formatConceptDisplayName,searchAtlasConcepts} from './i18n';
 const initial:SceneState={explode:0,visible:DEFAULT_VISIBLE,selected:[],isolate:false,view:'three-quarter',rotate:false,reset:0};
 export default function Home(){
  const detailTitle=useRef<HTMLHeadingElement>(null);
+ const aboutTitle=useRef<HTMLHeadingElement>(null);
  const [lang,setLang]=useState<Language>(()=>{
   if(typeof window!=='undefined'){
    const saved=localStorage.getItem('human_atlas_lang');
@@ -33,7 +35,7 @@ export default function Home(){
   return SYSTEMS.map(s=>({...s,name:map[s.id]?.name??s.name,description:map[s.id]?.description??s.description}));
  },[lang]);
 
- const [atlas,setAtlas]=useState<Atlas|null>(null),[state,setState]=useState(initial),[progress,setProgress]=useState(0),[error,setError]=useState(''),[panel,setPanel]=useState<'layers'|'search'|null>(null),[details,setDetails]=useState(false),[about,setAbout]=useState(false),[query,setQuery]=useState(''),[chosen,setChosen]=useState<Concept|null>(null),[quizOpen,setQuizOpen]=useState(false);
+ const [atlas,setAtlas]=useState<Atlas|null>(null),[state,setState]=useState(initial),[progress,setProgress]=useState(0),[error,setError]=useState(''),[panel,setPanel]=useState<'layers'|'search'|null>(null),[details,setDetails]=useState(false),[about,setAbout]=useState(false),[query,setQuery]=useState(''),[chosen,setChosen]=useState<Concept|null>(null),[quizOpen,setQuizOpen]=useState(false),[flashcardOpen,setFlashcardOpen]=useState(false);
  useEffect(()=>{const abort=new AbortController();setProgress(0);setError('');setAtlas(null);setChosen(null);setDetails(false);setState({...initial,visible:DEFAULT_VISIBLE});fetch('/models/atlas.json',{signal:abort.signal}).then(r=>{if(!r.ok)throw new Error('The anatomy catalogue could not be loaded.');return r.json();}).then(data=>setAtlas(data as Atlas)).catch(e=>{if(e.name!=='AbortError')setError(e.message);});return()=>abort.abort();},[]);
  useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='/'&&!(e.target instanceof HTMLInputElement)&&!(e.target instanceof HTMLTextAreaElement)){e.preventDefault();setPanel('search');setDetails(false);}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
  const parts=useMemo(()=>new Map(atlas?.parts.map(p=>[p.id,p])),[atlas]);
@@ -116,6 +118,10 @@ export default function Home(){
     <GraduationCap size={18}/>
     <span>{lang==='id'?'Kuis Anatomi':'Anatomy Quiz'}</span>
    </Button>
+   <Button variant="ghost" className="flashcard-top-btn" onClick={()=>{setDetails(false);setPanel(null);setFlashcardOpen(true);}} aria-label={lang==='id'?'Kartu Belajar':'Flashcards'} title={lang==='id'?'Kartu Belajar 3D Interaktif':'Interactive 3D Flashcards'}>
+    <Sparkles size={18}/>
+    <span>{lang==='id'?'Kartu Belajar':'Flashcards'}</span>
+   </Button>
    <Button variant="ghost" className={panel==='search'?'active':''} onClick={()=>openPanel('search')} aria-label={t.searchAria}><Search size={18}/><span>{t.searchButton}</span><kbd>{t.searchKbd}</kbd></Button>
    <Button variant="ghost" className="icon-button" aria-label={t.aboutButton} onClick={()=>{setDetails(false);setPanel(null);setAbout(true);}}><Info size={18}/></Button>
   </nav>
@@ -133,8 +139,9 @@ export default function Home(){
   {progress<100&&!error&&<div className="loading glass" role="status"><Activity size={18}/><div><strong>{t.loadingPreparing}</strong><span>{progress}% · {t.loadingPieces.replace('{count}',atlas?.parts.length.toLocaleString()??'2,234')}</span><div className="loading-track"><i style={{width:`${progress}%`}}/></div></div></div>}
   {error&&<div className="loading glass error" role="alert"><p>{error}</p><Button variant="ghost" onClick={()=>location.reload()}>{t.reloadViewer}</Button></div>}
   <Sheet open={details&&selectedParts.length>0} modal={false} disablePointerDismissal onOpenChange={setDetails}><SheetContent initialFocus={detailTitle} className={`detail-sheet glass ${state.isolate?'is-isolated':''}`} showCloseButton={true}><div className="detail-header"><div className="detail-accent" style={{background:system?.color}}/><div className="eyebrow">{system?.name??t.anatomyEyebrow}</div><SheetTitle ref={detailTitle} tabIndex={-1} className="structure-title">{chosen&&(lang==='id'?translateAnatomyName(chosen.name):chosen.name)}</SheetTitle>{lang==='id'&&chosen&&translateAnatomyName(chosen.name).toLowerCase()!==chosen.name.toLowerCase()&&<span className="scientific-name">Terminologi Medis/Anatomi: <em>{chosen.name}</em></span>}</div><div className="detail-scroll" key={`${chosen?.id}-${state.isolate}-${lang}`}><SheetDescription className="structure-description">{chosen&&selected?getExplanation(chosen.name,selected.system,lang):''}</SheetDescription><span className="context-note">{t.systemOverviewNote}</span><div className="structure-meta"><span>{t.atlasReference}<strong>{chosen?.id}</strong></span><span>{t.selectedPieces}<strong>{state.selected.length.toLocaleString()}</strong></span></div>{selectedParts.length>1&&<div className="member-list"><h3>{t.includedStructures}</h3>{selectedParts.slice(0,50).map(p=><Button variant="ghost" key={p.id} onClick={()=>choosePart(p.id)}><span>{lang==='id'?`${translateAnatomyName(p.name)} (${p.name})`:p.name}</span><ChevronRight size={14}/></Button>)}{selectedParts.length>50&&<p>{t.andMorePieces.replace('{count}',String(selectedParts.length-50))}</p>}</div>}<a className="source-link" href="https://lifesciencedb.jp/bp3d/" target="_blank" rel="noreferrer">{t.viewAnatomicalSource} <ArrowUpRight size={14}/></a></div><div className="detail-actions"><Button className={`primary-action ${state.isolate?'active':''}`} onClick={()=>setState(s=>({...s,isolate:!s.isolate,explode:0}))}><Focus size={18}/>{state.isolate?t.showSurrounding:t.isolateStructure}<ChevronRight size={16}/></Button><Button variant="ghost" className="secondary-action" onClick={()=>{setState(s=>({...s,selected:[],isolate:false}));setDetails(false);}}>{t.clearSelection}</Button></div></SheetContent></Sheet>
-  <Sheet open={about} onOpenChange={setAbout}><SheetContent className="about-sheet glass"><div className="eyebrow">{t.aboutEyebrow}</div><SheetTitle className="structure-title">{t.aboutTitle}</SheetTitle><SheetDescription>{t.aboutSubtitle}</SheetDescription><div className="about-copy"><p><strong>{t.aboutP1Strong}</strong><br/>{t.aboutP1}</p><p>{t.aboutP2}</p><p>{t.aboutP3}</p><h3>{t.aboutSourceHeading}</h3><p>{t.aboutSourceDesc}</p><a href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html" target="_blank" rel="noreferrer">{t.aboutDatasetLicense} <ArrowUpRight size={14}/></a><a href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html" target="_blank" rel="noreferrer">{t.aboutOriginalGeometry} <ArrowUpRight size={14}/></a><a href="https://academic.oup.com/nar/article/37/suppl_1/D782/1000752" target="_blank" rel="noreferrer">{t.aboutReadPublication} <ArrowUpRight size={14}/></a></div></SheetContent></Sheet>
+  <Sheet open={about} onOpenChange={setAbout}><SheetContent initialFocus={aboutTitle} className="about-sheet glass"><div className="eyebrow">{t.aboutEyebrow}</div><SheetTitle ref={aboutTitle} tabIndex={-1} className="structure-title">{t.aboutTitle}</SheetTitle><SheetDescription>{t.aboutSubtitle}</SheetDescription><div className="about-copy"><div className="about-school-card"><div className="school-card-badge"><GraduationCap size={15}/><span>{t.schoolCreditBadge}</span></div><h3>{t.schoolCreditHeading}</h3><p className="school-credit-text">{t.schoolCreditDesc}</p><div className="school-contributors-grid"><div className="contrib-item"><span className="contrib-role">{t.schoolCreditRoleLead}</span><strong className="contrib-name">{t.schoolCreditLeadName}</strong></div><div className="contrib-item"><span className="contrib-role">{t.schoolCreditRoleTeam}</span><strong className="contrib-name">{t.schoolCreditTeamNames}</strong></div><div className="contrib-item full-width"><span className="contrib-role">{lang==='id'?'Instansi & Tahun':'Institution & Year'}</span><strong className="contrib-name">{t.schoolCreditInstitution}</strong></div></div></div><p><strong>{t.aboutP1Strong}</strong><br/>{t.aboutP1}</p><p>{t.aboutP2}</p><p>{t.aboutP3}</p><h3>{t.aboutSourceHeading}</h3><p>{t.aboutSourceDesc}</p><a href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html" target="_blank" rel="noreferrer">{t.aboutDatasetLicense} <ArrowUpRight size={14}/></a><a href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html" target="_blank" rel="noreferrer">{t.aboutOriginalGeometry} <ArrowUpRight size={14}/></a><a href="https://academic.oup.com/nar/article/37/suppl_1/D782/1000752" target="_blank" rel="noreferrer">{t.aboutReadPublication} <ArrowUpRight size={14}/></a></div></SheetContent></Sheet>
   <QuizModal isOpen={quizOpen} onClose={()=>setQuizOpen(false)} lang={lang} onInspectStructure={inspectFromQuiz}/>
+  <FlashcardModal isOpen={flashcardOpen} onClose={()=>setFlashcardOpen(false)} lang={lang} onInspectStructure={inspectFromQuiz} onOpenQuiz={()=>{setFlashcardOpen(false);setQuizOpen(true);}}/>
  </main>;
 }
 
