@@ -18,7 +18,19 @@ Perkiraan lalu lintas jaringan:
 
 Contoh: 30 perangkat yang dibuka bersamaan untuk pertama kali membutuhkan ±1 GB. Pada Wi-Fi ±200 Mbit/s itu sekitar 40–60 detik. Setelah itu, membuka ulang di kelas hampir tidak memakai bandwidth.
 
-## Langkah pemasangan
+## Cara cepat: jalankan langsung dari repositori
+
+Jika komputer yang menyimpan repositori ini sekaligus menjadi server:
+
+```sh
+npm ci           # sekali saja, atau setelah package.json berubah
+npm run build    # setiap kali kode atau model berubah
+npm start        # sama dengan: node scripts/serve.mjs
+```
+
+Di dalam repositori, file server ada di `scripts/serve.mjs`, bukan di root. Karena itu `node serve.mjs` dari root repositori akan gagal dengan `Cannot find module`.
+
+## Langkah pemasangan di server terpisah
 
 1. **Build** di komputer yang punya internet (Node.js 22.13 atau lebih baru):
 
@@ -35,14 +47,14 @@ Contoh: 30 perangkat yang dibuka bersamaan untuk pertama kali membutuhkan ±1 GB
    └── dist/       ← hasil build
    ```
 
-3. **Jalankan** di server (Node.js 22 atau lebih baru):
+3. **Jalankan** di server (Node.js 22 atau lebih baru), dari dalam folder `human-atlas/` tadi:
 
    ```sh
+   cd human-atlas
    node serve.mjs
    ```
 
    Server menampilkan alamat yang bisa dibuka perangkat lain, misalnya `http://192.168.1.10:3016`.
-   Dari dalam repositori, cukup `npm start`.
 
    Pengaturan lewat variabel lingkungan: `PORT` (bawaan `3016`), `HOST` (bawaan `0.0.0.0`), `ATLAS_DIST` (lokasi folder `dist`).
 
