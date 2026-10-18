@@ -24,6 +24,17 @@ npm run dev
 
 Open http://localhost:3016. To build the static site, run `npm run build`; the output is in `dist/`.
 
+## Intranet and self-hosting
+
+`npm run build` prepares `dist/` for self-hosting: geometry chunks get content hashes and text assets get precompressed `.br`/`.gz` copies. Serve it with the dependency-free production server:
+
+```sh
+npm run build
+npm start          # node scripts/serve.mjs, listens on 0.0.0.0:3016 (PORT, HOST, ATLAS_DIST)
+```
+
+Each device downloads the geometry once and keeps it in IndexedDB, which also works over plain HTTP. Later visits only revalidate small files, and a device downloads geometry again only when the model changes. Setup steps, nginx and systemd examples, and capacity notes (in Indonesian) are in [docs/INTRANET.md](docs/INTRANET.md).
+
 ## Validate
 
 ```sh

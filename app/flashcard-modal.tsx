@@ -293,6 +293,8 @@ export default function FlashcardModal({
     let animId: number;
     const renderConfetti = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Stop the loop once every piece has fallen out of view instead of clearing an empty canvas forever.
+      if (particles.every(p => p.y > canvas.height + p.r * 4)) return;
       particles.forEach(p => {
         p.tiltAngle += p.tiltAngleIncremental;
         p.y += (Math.cos(p.d) + 3 + p.r / 2) / 2;

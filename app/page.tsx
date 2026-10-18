@@ -1,5 +1,6 @@
 import {flushSync} from 'react-dom';
 import {registerAtlasTools} from './agent-tools';
+import {openModelCache} from './model-cache';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Activity,ArrowUpRight,ChevronRight,Focus,GraduationCap,Info,Languages,Layers3,Pause,RotateCcw,RotateCw,Search,Sparkles,X} from 'lucide-react';
 import {Button} from '@/components/ui/button';
@@ -14,21 +15,20 @@ import FlashcardModal from './flashcard-modal';
 import {DEFAULT_VISIBLE,SYSTEMS,type Atlas,type Concept,type SceneState,type SystemId,type View} from './anatomy';
 import {type Language,UI_TEXT,SYSTEMS_EN,SYSTEMS_ID,getExplanation,translateAnatomyName,formatConceptDisplayName,searchAtlasConcepts} from './i18n';
 const initial:SceneState={explode:0,visible:DEFAULT_VISIBLE,selected:[],isolate:false,view:'three-quarter',rotate:false,reset:0};
+const LANG_KEY='human_atlas_lang';
+/** Storage can throw when a browser blocks site data; the preference is optional. */
+function readLang():Language{try{const saved=localStorage.getItem(LANG_KEY);if(saved==='en'||saved==='id')return saved;}catch{}return 'id';}
+function saveLang(lang:Language){try{localStorage.setItem(LANG_KEY,lang);}catch{}}
 export default function Home(){
  const detailTitle=useRef<HTMLHeadingElement>(null);
  const aboutTitle=useRef<HTMLHeadingElement>(null);
- const [lang,setLang]=useState<Language>(()=>{
-  if(typeof window!=='undefined'){
-   const saved=localStorage.getItem('human_atlas_lang');
-   if(saved==='en'||saved==='id')return saved;
-  }
-  return 'id';
- });
+ const [lang,setLang]=useState<Language>(readLang);
  const toggleLang=()=>{
   const next=lang==='id'?'en':'id';
   setLang(next);
-  if(typeof window!=='undefined')localStorage.setItem('human_atlas_lang',next);
+  saveLang(next);
  };
+ useEffect(()=>{document.documentElement.lang=lang;},[lang]);
  const t=UI_TEXT[lang];
  const systems=useMemo(()=>{
   const map=lang==='id'?SYSTEMS_ID:SYSTEMS_EN;
@@ -36,13 +36,13 @@ export default function Home(){
  },[lang]);
 
  const [atlas,setAtlas]=useState<Atlas|null>(null),[state,setState]=useState(initial),[progress,setProgress]=useState(0),[error,setError]=useState(''),[panel,setPanel]=useState<'layers'|'search'|null>(null),[details,setDetails]=useState(false),[about,setAbout]=useState(false),[query,setQuery]=useState(''),[chosen,setChosen]=useState<Concept|null>(null),[quizOpen,setQuizOpen]=useState(false),[flashcardOpen,setFlashcardOpen]=useState(false);
- useEffect(()=>{const abort=new AbortController();setProgress(0);setError('');setAtlas(null);setChosen(null);setDetails(false);setState({...initial,visible:DEFAULT_VISIBLE});fetch('/models/atlas.json',{signal:abort.signal}).then(r=>{if(!r.ok)throw new Error('The anatomy catalogue could not be loaded.');return r.json();}).then(data=>setAtlas(data as Atlas)).catch(e=>{if(e.name!=='AbortError')setError(e.message);});return()=>abort.abort();},[]);
+ useEffect(()=>{const abort=new AbortController();setProgress(0);setError('');setAtlas(null);setChosen(null);setDetails(false);setState({...initial,visible:DEFAULT_VISIBLE});void openModelCache();fetch('/models/atlas.json',{signal:abort.signal}).then(r=>{if(!r.ok)throw new Error('The anatomy catalogue could not be loaded.');return r.json();}).then(data=>setAtlas(data as Atlas)).catch(e=>{if(e.name!=='AbortError')setError(e.message);});return()=>abort.abort();},[]);
  useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='/'&&!(e.target instanceof HTMLInputElement)&&!(e.target instanceof HTMLTextAreaElement)){e.preventDefault();setPanel('search');setDetails(false);}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
  const parts=useMemo(()=>new Map(atlas?.parts.map(p=>[p.id,p])),[atlas]);
  const counts=useMemo(()=>Object.fromEntries(systems.map(s=>[s.id,atlas?.parts.filter(p=>p.system===s.id).length??0])),[atlas,systems]);
  const activeSystems=systems.filter(s=>counts[s.id]>0);
  const selectedParts=state.selected.map(id=>parts.get(id)).filter(p=>!!p),selected=selectedParts[0],system=systems.find(s=>s.id===selected?.system);
- const visibleCount=atlas?.parts.filter(p=>state.isolate?state.selected.includes(p.id):state.visible.includes(p.system)||state.selected.includes(p.id)).length??0;
+ const visibleCount=useMemo(()=>{if(!atlas)return 0;const selection=new Set(state.selected),visible=new Set(state.visible);return atlas.parts.filter(p=>state.isolate?selection.has(p.id):visible.has(p.system)||selection.has(p.id)).length;},[atlas,state.isolate,state.selected,state.visible]);
  const results=useMemo(()=>searchAtlasConcepts(atlas,query,lang),[atlas,query,lang]);
  const choose=(c:Concept)=>{setChosen(c);setState(s=>({...s,selected:c.elements,isolate:false,rotate:false}));setDetails(true);setPanel(null);};
  useEffect(()=>{if(!atlas)return;return registerAtlasTools(atlas,c=>flushSync(()=>choose(c)));},[atlas]);
@@ -57,13 +57,15 @@ export default function Home(){
   if(match)choose(match);
  };
  useEffect(()=>{
-  if(!atlas||progress<100)return;
+  // Dev-only tool that regenerates quiz images through the Vite dev server's snapshot API.
+  // Production hosts have no such API, so this must never run there.
+  if(!import.meta.env.DEV||!atlas||progress<100)return;
   const captureOrganSnapshots=async()=>{
    try{
     const testRes=await fetch('/api/check-snapshots');
     const {exists}=(await testRes.json()) as {exists:boolean};
-    if(exists)return;
-   }catch{}
+    if(exists!==false)return;
+   }catch{return;}
    const organList:[string,string][]=[
     ['heart','heart'],
     ['femur','femur'],
@@ -106,7 +108,7 @@ export default function Home(){
   captureOrganSnapshots();
  },[atlas,progress]);
  return <main className="studio">
-  {atlas&&<AnatomyScene atlas={atlas} state={{...state,inspectorOpen:details&&selectedParts.length>0}} lang={lang} onSelect={choosePart} onProgress={n=>{setProgress(n);if(n===100)setError('');}} onError={setError}/>}
+  {atlas&&<AnatomyScene atlas={atlas} state={{...state,rotate:state.rotate&&!quizOpen&&!flashcardOpen,inspectorOpen:details&&selectedParts.length>0}} lang={lang} onSelect={choosePart} onProgress={n=>{setProgress(n);if(n===100)setError('');}} onError={setError}/>}
   <div className="vignette"/>
   <header className="identity"><div className="eyebrow"><span className="status-dot"/> {t.appEyebrow}</div><h1>{t.appTitle}<Badge variant="outline" className="edition">3D</Badge></h1><div className="identity-meta">{atlas?atlas.parts.length.toLocaleString():'2,234'} {t.modeledPieces} <span>·</span> BodyParts3D</div></header>
   <nav className="top-actions" aria-label="Explorer panels">
